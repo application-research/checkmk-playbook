@@ -1,4 +1,4 @@
-<VirtualHost _default_:443>
+<VirtualHost *:443>
     ServerName {{ checkmk_server_url }}
     DocumentRoot /var/www/html
 
@@ -10,10 +10,4 @@
     SSLCertificateKeyFile /etc/ssl/private/{{ checkmk_server_url }}.key
     # Uncomment the following line if you have a certificate chain file
     # SSLCertificateChainFile /etc/ssl/certs/{{ checkmk_server_url }}.chain.crt
-
-    <Location />
-        RewriteEngine On
-        RewriteCond %{HTTPS} off
-        RewriteRule ^(.*)$ https://%{HTTP_HOST}/{{ checkmk_site_name }}/$1 [R=301,L]
-    </Location>
 </VirtualHost>

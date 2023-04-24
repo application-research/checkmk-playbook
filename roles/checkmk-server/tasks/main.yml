@@ -132,13 +132,19 @@
 
 - name: Ensure the default 000-default.conf file is absent
   ansible.builtin.file:
-    path: /etc/apache2/sites-available/000-default.conf
+    path: /etc/apache2/sites-enabled/000-default.conf
     state: absent
 
 - name: Configure the default site
   ansible.builtin.template:
     src: "{{ role_path }}/templates/default.conf.j2"
     dest: "/etc/apache2/sites-available/{{ checkmk_server_url }}.conf"
+
+- name: Configure symlink for the default site
+  ansible.builtin.file:
+    src: "/etc/apache2/sites-available/{{ checkmk_server_url }}.conf"
+    dest: "/etc/apache2/sites-enabled/{{ checkmk_server_url }}.conf"
+    state: link
 
 # ubuntu@dev-checkmk01:~$ sudo systemctl restart apache2
 
@@ -251,7 +257,13 @@
 - name: Configure the default HTTPS site
   ansible.builtin.template:
     src: "{{ role_path }}/templates/default-ssl.conf.j2"
-    dest: /etc/apache2/sites-available/{{ checkmk_server_url }}-ssl.conf
+    dest: "/etc/apache2/sites-available/{{ checkmk_server_url }}-ssl.conf"
+
+- name: Configure symlink for the default HTTPS site
+  ansible.builtin.file:
+    src: "/etc/apache2/sites-available/{{ checkmk_server_url }}-ssl.conf"
+    dest: "/etc/apache2/sites-enabled/{{ checkmk_server_url }}-ssl.conf"
+    state: link
 
 # ubuntu@dev-checkmk01:~$ sudo a2enmod ssl
 # Considering dependency setenvif for ssl:
@@ -308,4 +320,4 @@
     msg:
     - "CheckMK web logging is available on the server at: /var/log/apache2/{{ checkmk_server_url }}-access.log"
     - ""
-    - "Web address now available at: https://{{ checkmk_server_url }}/estuary/check_mk/login.py"
+    - "Web address now available at: https://{{ checkmk_server_url }}/{{ checkmk_site_name }}/check_mk/login.py"
