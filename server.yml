@@ -1,0 +1,11 @@
+---
+
+- name: CheckMK Server Setup
+  hosts: checkmk_server
+  become: true
+
+#  vars_files:
+#    - vars/main.yml
+
+  roles:
+    - checkmk-server

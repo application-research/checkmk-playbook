@@ -1,0 +1,2 @@
+[checkmk_server]
+checkmk.penholder.xyz ansible_host=checkmk.penholder.xyz ansible_ssh_user=root

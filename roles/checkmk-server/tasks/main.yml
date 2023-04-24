@@ -1,0 +1,311 @@
+---
+
+# sudo apt update && sudo apt upgrade
+- name: Update repos
+  ansible.builtin.package:
+    update_cache: yes
+  register: package_status
+  until: package_status is success
+  delay: 6
+  retries: 10
+
+- name: Upgrade all packages
+  ansible.builtin.package:
+    name: "*"
+    state: latest
+  register: package_status
+  until: package_status is success
+  delay: 6
+  retries: 10
+
+- name: Add prerequisite packages
+  ansible.builtin.apt:
+    pkg:
+    - gnupg2
+  register: package_status
+  until: package_status is success
+  delay: 6
+  retries: 10
+
+# wget https://download.checkmk.com/checkmk/2.2.0b4/check-mk-raw-2.2.0b4_0.jammy_amd64.deb
+
+- name: Download checkmk deb
+  ansible.builtin.get_url:
+    url: https://download.checkmk.com/checkmk/2.2.0b4/check-mk-raw-2.2.0b4_0.jammy_amd64.deb
+    dest: /tmp/check-mk-raw-2.2.0b4_0.jammy_amd64.deb
+
+# wget https://download.checkmk.com/checkmk/Check_MK-pubkey.gpg
+
+- name: Download checkmk GPG key
+  ansible.builtin.get_url:
+    url: https://download.checkmk.com/checkmk/Check_MK-pubkey.gpg
+    dest: /tmp/Check_MK-pubkey.gpg
+
+# gpg --import Check_MK-pubkey.gpg
+
+# - name: Import checkmk GPG key
+#   ansible.builtin.apt_key:
+#     url: file:///tmp/Check_MK-pubkey.gpg
+#     state: present
+#   delay: 6
+#   retries: 10
+
+- name: Import checkmk GPG key
+  ansible.builtin.command: apt-key add /tmp/Check_MK-pubkey.gpg
+  register: result
+  until: result.rc == 0
+
+- name: Import checkmk GPG key to GnuPG keyring
+  ansible.builtin.command: gpg --import /tmp/Check_MK-pubkey.gpg
+
+# gpg --verify check-mk-raw-2.2.0b4_0.jammy_amd64.deb
+
+- name: Verify checkmk deb
+  ansible.builtin.command: gpg --verify /tmp/check-mk-raw-2.2.0b4_0.jammy_amd64.deb
+
+# sudo apt install ./check-mk-raw-2.2.0b4_0.jammy_amd64.deb -y
+
+#- name: Check if check-mk-raw package is already installed
+#  ansible.builtin.command: dpkg -l check-mk-raw
+#  register: package_status
+
+# - name: DEBUG print package_status
+#   ansible.builtin.debug:
+#     msg: "{{ package_status.stdout_lines }}"
+
+- name: Add prerequisite packages
+  ansible.builtin.apt:
+    deb: /tmp/check-mk-raw-2.2.0b4_0.jammy_amd64.deb
+  register: package_status_2
+
+- name: DEBUG print package_status_2
+  ansible.builtin.debug:
+    msg: "{{ package_status_2.stdout_lines }}"
+
+# omd version   
+
+- name: Check if checkmk is installed
+  ansible.builtin.command: omd version
+
+- name: Check if site exists
+  ansible.builtin.command: omd sites
+  register: omd_sites
+
+- name: Set site_exists variable
+  ansible.builtin.set_fact:
+    site_exists: "{{ checkmk_site_name in omd_sites.stdout }}"
+
+- name: Create a new site
+  ansible.builtin.command: omd create {{ checkmk_site_name }}
+  when: not site_exists
+
+- name: Configure the default site
+  ansible.builtin.command: omd config {{ checkmk_site_name }} set APACHE_TCP_ADDR
+
+# ubuntu@dev-checkmk01:~$ sudo omd create estuary
+# Adding /opt/omd/sites/estuary/tmp to /etc/fstab.
+# Creating temporary filesystem /omd/sites/estuary/tmp...OK
+# Updating core configuration...
+# Generating configuration for core (type nagios)...
+# Precompiling host checks...OK
+# Executing post-create script "01_create-sample-config.py"...OK
+# Restarting Apache...OK
+# Created new site estuary with version 2.2.0b4.cre.
+
+#   The site can be started with omd start estuary.
+#   The default web UI is available at http://dev-checkmk01/estuary/
+
+#   The admin user for the web applications is cmkadmin with password: Ntn......
+#   For command line administration of the site, log in with 'omd su estuary'.
+#   After logging in, you can change the password for cmkadmin with 'cmk-passwd cmkadmin'.
+
+# - name: Configure the default site
+#   ansible.builtin.command: omd config {{ checkmk_site_name }} set APACHE_TCP_ADDR
+
+# ubuntu@dev-checkmk01:~$ sudo nano /etc/apache2/sites-available/000-default.conf 
+# ```
+# <VirtualHost *:80>
+#     ServerName dev-checkmk01.estuary.tech
+#     Redirect permanent / http://dev-checkmk01.estuary.tech/estuary/
+# </VirtualHost>
+# ```
+
+- name: Ensure the default 000-default.conf file is absent
+  ansible.builtin.file:
+    path: /etc/apache2/sites-available/000-default.conf
+    state: absent
+
+- name: Configure the default site
+  ansible.builtin.template:
+    src: "{{ role_path }}/templates/default.conf.j2"
+    dest: "/etc/apache2/sites-available/{{ checkmk_server_url }}.conf"
+
+# ubuntu@dev-checkmk01:~$ sudo systemctl restart apache2
+
+- name: Restart apache2
+  ansible.builtin.service:
+    name: apache2
+    state: restarted
+
+# ubuntu@dev-checkmk01:~$ sudo omd start estuary
+# Temporary filesystem already mounted
+# Starting agent-receiver...OK
+# Starting mkeventd...OK
+# Starting rrdcached...OK
+# Starting npcd...OK
+# Starting nagios...OK
+# Starting apache...OK
+# Starting redis...OK
+# Initializing Crontab...OK
+
+- name: Check site status
+  ansible.builtin.command: omd status {{ checkmk_site_name }}
+  register: site_status
+
+- name: Set site_running variable
+  ansible.builtin.set_fact:
+    site_running: "'running' in site_status.stdout"
+
+- name: Start the default site
+  ansible.builtin.command: omd start {{ checkmk_site_name }}
+  when: not site_running
+
+
+# ## SHOULD ADD SSL TOO :)
+
+# ubuntu@dev-checkmk01:~$ sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048   -keyout /etc/ssl/private/dev-checkmk01.estuary.tech.key   -out /etc/ssl/certs/dev-checkmk01.estuary.tech.crt
+# ..+...............+..............+......+.........+....+...+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*...+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*...+.........+..+....+........+......+...............+......+...+.......+........+......+.+...+...+...+.............................+......+.......+.........+...+....................+.+......+.....+...+...............+...+...+....+..+.+..+.............+........+............+...+.+...+........+.........+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# .....+........+...+....+...+...+.....+...+....+..+................+..+.+......+........+......+..........+..+.......+...+..+.............+........+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*.+...+...+....+..................+.....+....+...+......+.........+...+...+..+...+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*........+...+.....+......+......+...+.......+...+.................+.+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# -----
+# You are about to be asked to enter information that will be incorporated
+# into your certificate request.
+# What you are about to enter is what is called a Distinguished Name or a DN.
+# There are quite a few fields but you can leave some blank
+# For some fields there will be a default value,
+# If you enter '.', the field will be left blank.
+# -----
+# Country Name (2 letter code) [AU]:US
+# State or Province Name (full name) [Some-State]:       
+# Locality Name (eg, city) []:
+# Organization Name (eg, company) [Internet Widgits Pty Ltd]:Protocol Labs
+# Organizational Unit Name (eg, section) []:Estuary Team
+# Common Name (e.g. server FQDN or YOUR name) []:dev-checkmk01.estuary.tech.key
+# Email Address []:wings@protocol.ai 
+
+# - name: Create self-signed certificate
+#   community.crypto.x509_certificate:
+#     path: /etc/ssl/certs/{{ checkmk_server_url }}.crt
+#     privatekey_path: /etc/ssl/private/{{ checkmk_server_url }}.key
+#     provider: selfsigned
+#     state: present
+#     #selfsigned_not_before: 0
+#     #selfsigned_not_after: 31536000  # 365 days in seconds
+#     #selfsigned_version: 3
+
+- name: Generate private key
+  ansible.builtin.command:
+    cmd: openssl genrsa -out /etc/ssl/private/{{ checkmk_server_url }}.key 2048
+    creates: /etc/ssl/private/{{ checkmk_server_url }}.key
+
+- name: Create self-signed certificate
+  ansible.builtin.command:
+    cmd: >
+      openssl req -new -x509 -key /etc/ssl/private/{{ checkmk_server_url }}.key
+      -out /etc/ssl/certs/{{ checkmk_server_url }}.crt -days 365
+      -subj "/C=US/CN={{ checkmk_server_url }}"
+    creates: /etc/ssl/certs/{{ checkmk_server_url }}.crt
+
+- name: Set certificate file permissions
+  ansible.builtin.file:
+    path: /etc/ssl/certs/{{ checkmk_server_url }}.crt
+    mode: 0644
+
+- name: Set private key file permissions
+  ansible.builtin.file:
+    path: /etc/ssl/private/{{ checkmk_server_url }}.key
+    mode: 0600
+
+
+# ubuntu@dev-checkmk01:~$ sudo chmod 600 /etc/ssl/private/dev-checkmk01.estuary.tech.key
+# ubuntu@dev-checkmk01:~$ sudo nano /etc/apache2/sites-available/default-ssl.conf
+# ```
+# <VirtualHost _default_:443>
+#     ServerName dev-checkmk01.estuary.tech
+#     DocumentRoot /var/www/html
+
+#     ErrorLog ${APACHE_LOG_DIR}/error.log
+#     CustomLog ${APACHE_LOG_DIR}/access.log combined
+
+#     SSLEngine on
+#     SSLCertificateFile /etc/ssl/certs/dev-checkmk01.estuary.tech.crt
+#     SSLCertificateKeyFile /etc/ssl/private/dev-checkmk01.estuary.tech.key
+#     # Uncomment the following line if you have a certificate chain file
+#     # SSLCertificateChainFile /etc/ssl/certs/dev-checkmk01.estuary.tech.chain.crt
+
+#     <Location />
+#         Redirect permanent / https://dev-checkmk01.estuary.tech/estuary/
+#     </Location>
+# </VirtualHost>
+# ```
+
+- name: Configure the default HTTPS site
+  ansible.builtin.template:
+    src: "{{ role_path }}/templates/default-ssl.conf.j2"
+    dest: /etc/apache2/sites-available/{{ checkmk_server_url }}-ssl.conf
+
+# ubuntu@dev-checkmk01:~$ sudo a2enmod ssl
+# Considering dependency setenvif for ssl:
+# Module setenvif already enabled
+# Considering dependency mime for ssl:
+# Module mime already enabled
+# Considering dependency socache_shmcb for ssl:
+# Enabling module socache_shmcb.
+# Enabling module ssl.
+# See /usr/share/doc/apache2/README.Debian.gz on how to configure SSL and create self-signed certificates.
+
+- name: Enable the SSL module
+  ansible.builtin.command: a2enmod ssl
+
+# To activate the new configuration, you need to run:
+#   systemctl restart apache2
+
+- name: Restart Apache
+  ansible.builtin.command: systemctl restart apache2
+
+# ubuntu@dev-checkmk01:~$ ls /etc/apache2/sites-enabled/
+# 000-default.conf
+
+# ubuntu@dev-checkmk01:~$ sudo nano /etc/apache2/sites-enabled/dev-checkmk01-ssl.conf
+# ```
+# <VirtualHost _default_:443>
+#     ServerName dev-checkmk01.estuary.tech
+#     DocumentRoot /var/www/html
+
+#     ErrorLog ${APACHE_LOG_DIR}/error.log
+#     CustomLog ${APACHE_LOG_DIR}/access.log combined
+
+#     SSLEngine on
+#     SSLCertificateFile /etc/ssl/certs/dev-checkmk01.estuary.tech.crt
+#     SSLCertificateKeyFile /etc/ssl/private/dev-checkmk01.estuary.tech.key
+#     # Uncomment the following line if you have a certificate chain file
+#     # SSLCertificateChainFile /etc/ssl/certs/dev-checkmk01.estuary.tech.chain.crt
+
+#     <Location />
+#         RewriteEngine On
+#         RewriteCond %{HTTPS} off
+#         RewriteRule ^(.*)$ https://%{HTTP_HOST}/estuary/$1 [R=301,L]
+#     </Location>
+# </VirtualHost>
+
+# ```
+
+# ubuntu@dev-checkmk01:~$ sudo systemctl restart apache2
+
+# ## NOW AVAILABLE OVER SSL AT: https://dev-checkmk01.estuary.tech/estuary/check_mk/login.py
+
+- name: Print location of the CheckMK web logging
+  ansible.builtin.debug:
+    msg:
+    - "CheckMK web logging is available on the server at: /var/log/apache2/{{ checkmk_server_url }}-access.log"
+    - ""
+    - "Web address now available at: https://{{ checkmk_server_url }}/estuary/check_mk/login.py"
