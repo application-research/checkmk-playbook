@@ -1,2 +1,7 @@
 [checkmk_server]
 checkmk.penholder.xyz ansible_host=checkmk.penholder.xyz ansible_ssh_user=root
+
+[checkmk_clients]
+haproxy01.penholder.xyz ansible_host=haproxy01.penholder.xyz ansible_ssh_user=root
+haproxy02.penholder.xyz ansible_host=haproxy02.penholder.xyz ansible_ssh_user=root
+haproxy03.penholder.xyz ansible_host=haproxy03.penholder.xyz ansible_ssh_user=root

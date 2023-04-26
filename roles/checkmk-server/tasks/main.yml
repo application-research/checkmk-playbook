@@ -1,6 +1,7 @@
 ---
 
 # sudo apt update && sudo apt upgrade
+
 - name: Update repos
   ansible.builtin.package:
     update_cache: yes
@@ -31,8 +32,9 @@
 
 - name: Download checkmk deb
   ansible.builtin.get_url:
-    url: https://download.checkmk.com/checkmk/2.2.0b4/check-mk-raw-2.2.0b4_0.jammy_amd64.deb
-    dest: /tmp/check-mk-raw-2.2.0b4_0.jammy_amd64.deb
+    #url: https://download.checkmk.com/checkmk/2.2.0b4/check-mk-raw-2.2.0b4_0.jammy_amd64.deb
+    url: "{{ checkmk_download_url }}"
+    dest: /tmp/check-mk.deb
 
 # wget https://download.checkmk.com/checkmk/Check_MK-pubkey.gpg
 
@@ -60,8 +62,10 @@
 
 # gpg --verify check-mk-raw-2.2.0b4_0.jammy_amd64.deb
 
-- name: Verify checkmk deb
-  ansible.builtin.command: gpg --verify /tmp/check-mk-raw-2.2.0b4_0.jammy_amd64.deb
+- name: Verify checkmk deb and ensure 'Good signature from' is in the output
+  ansible.builtin.command: gpg --verify /tmp/check-mk.deb
+  register: gpg_verify_output
+  failed_when: "'Good signature from' not in gpg_verify_output.stderr"
 
 # sudo apt install ./check-mk-raw-2.2.0b4_0.jammy_amd64.deb -y
 
@@ -73,9 +77,9 @@
 #   ansible.builtin.debug:
 #     msg: "{{ package_status.stdout_lines }}"
 
-- name: Add prerequisite packages
+- name: Add CheckMK server package
   ansible.builtin.apt:
-    deb: /tmp/check-mk-raw-2.2.0b4_0.jammy_amd64.deb
+    deb: /tmp/check-mk.deb
   register: package_status_2
 
 - name: DEBUG print package_status_2
@@ -95,12 +99,27 @@
   ansible.builtin.set_fact:
     site_exists: "{{ checkmk_site_name in omd_sites.stdout }}"
 
-- name: Create a new site
+- name: Create a new {{ checkmk_site_name }} site
   ansible.builtin.command: omd create {{ checkmk_site_name }}
   when: not site_exists
+  register: omd_create
 
-- name: Configure the default site
+- name: DEBUG print omd_create result
+  ansible.builtin.debug:
+    msg: "{{ omd_create.stdout_lines }}"
+  when: not site_exists
+
+- name: Configure the {{ checkmk_site_name }} site
   ansible.builtin.command: omd config {{ checkmk_site_name }} set APACHE_TCP_ADDR
+  when: not site_exists
+
+# - name: Initialise the {{ checkmk_site_name }} site
+#   ansible.builtin.command: omd init {{ checkmk_site_name }}
+#   when: not site_exists
+
+- name: Start the {{ checkmk_site_name }} site
+  ansible.builtin.command: omd start {{ checkmk_site_name }}
+  when: not site_exists
 
 # ubuntu@dev-checkmk01:~$ sudo omd create estuary
 # Adding /opt/omd/sites/estuary/tmp to /etc/fstab.
@@ -163,19 +182,6 @@
 # Starting apache...OK
 # Starting redis...OK
 # Initializing Crontab...OK
-
-- name: Check site status
-  ansible.builtin.command: omd status {{ checkmk_site_name }}
-  register: site_status
-
-- name: Set site_running variable
-  ansible.builtin.set_fact:
-    site_running: "'running' in site_status.stdout"
-
-- name: Start the default site
-  ansible.builtin.command: omd start {{ checkmk_site_name }}
-  when: not site_running
-
 
 # ## SHOULD ADD SSL TOO :)
 
@@ -313,7 +319,35 @@
 
 # ubuntu@dev-checkmk01:~$ sudo systemctl restart apache2
 
+# Create an automation user.
+# - name: "Create an automation user."
+#   tribe29.checkmk.user:
+#     server_url: "https://{{ checkmk_server_url }}/"
+#     site: "{{ checkmk_site_name }}"
+#     automation_user: "automation"
+#     automation_secret: "$SECRET"
+#     name: "registration"
+#     fullname: "Registration User"
+#     auth_type: "automation"
+#     password: "{{ checkmk_ansible_user_password }}"
+#     roles:
+#         - "registration"
+#     state: "present"
+
+# - name: Update cmkadmin password using expect
+#   vars:
+#     prompt_pattern: 'OMD\[{{ checkmk_site_name }}\]:~\$ '
+#   ansible.builtin.expect:
+#     command: "omd su {{ checkmk_site_name }}"
+#     echo: yes
+#     responses:
+#       '{{ prompt_pattern }}': "cmk-passwd cmkadmin"
+#       'New password: ': "{{ checkmk_cmkadmin_user_password }}"
+#       'Re-type new password: ': "{{ checkmk_cmkadmin_user_password }}"
+#       '{{ prompt_pattern }}': "exit"
+
 # ## NOW AVAILABLE OVER SSL AT: https://dev-checkmk01.estuary.tech/estuary/check_mk/login.py
+
 
 - name: Print location of the CheckMK web logging
   ansible.builtin.debug:
@@ -321,3 +355,8 @@
     - "CheckMK web logging is available on the server at: /var/log/apache2/{{ checkmk_server_url }}-access.log"
     - ""
     - "Web address now available at: https://{{ checkmk_server_url }}/{{ checkmk_site_name }}/check_mk/login.py"
+
+- name: Print omd_create result if defined
+  ansible.builtin.debug:
+    msg: "{{ omd_create.stdout_lines }}"
+  when: ( not site_exists ) and ( omd_create is defined )
