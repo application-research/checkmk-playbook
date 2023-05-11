@@ -3,19 +3,25 @@
 
 A playbook to install a CheckMK server and to connect clients.
 
+
 ## Install prerequisite packages
 ```
 $ ansible-galaxy collection install community.crypto
 $ ansible-galaxy collection install tribe29.checkmk
 ```
 
-## Running this playbook
 
-First deploy the CheckMK server:
+## Deploy a CheckMK server:
 
-`# ansible-playbook -v -i ./inventories/pchq server.yml`
+First fill out some of the group_vars in your own inventory:
 
-If it's the first time running this playbook observe the administrator password.
+`$ nano ./inventories/pchq/group_vars.yml`
+
+Then run the server.yml playbook against that inventory:
+
+`$ ansible-playbook -v -i ./inventories/pchq server.yml`
+
+If it's the first time running this playbook observe the administrator password that's generated in the playbooks output.
 
 You then need to use the webgui to create a user with the 'automation' role.
 
@@ -27,6 +33,13 @@ You then need to use the webgui to create a user with the 'automation' role.
 
 4) Click 'Save' to apply the newly generated automation secret.
 
-Then connect each CheckMK agent:
 
-`# ansible-playbook -v -i ./inventories/pchq clients.yml`
+## Connect each CheckMK agent:
+
+First edit a hosts file in your own inventory that includes each target server in the `[checkmk_clients]` group:
+
+`$ nano ./inventories/pchq/hosts`
+
+Then run the clients.yml playbook against that inventory:
+
+`$ ansible-playbook -v -i ./inventories/pchq clients.yml`
