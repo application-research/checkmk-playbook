@@ -1,8 +1,10 @@
 ---
 
-checkmk_server_url:  checkmk.penholder.xyz
-checkmk_site_name: penholder
-# Find download links at: https://checkmk.com/download/archive
-checkmk_download_url: https://download.checkmk.com/checkmk/2.1.0p26/check-mk-free-2.1.0p26_0.jammy_amd64.deb
-checkmk_agent_server_validate_certs: false
+# CheckMK Server Settings
+#checkmk_server_url:  checkmk.penholder.xyz
+#checkmk_site_name: penholder
+#checkmk_download_url: https://download.checkmk.com/checkmk/2.1.0p26/check-mk-free-2.1.0p26_0.jammy_amd64.deb       # Find download links at: https://checkmk.com/download/archive
+
+# CheckMK Agent Settings
+#checkmk_agent_server_validate_certs: false
 #checkmk_automation_secret: "fill-me-in"

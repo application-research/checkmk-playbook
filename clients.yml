@@ -1,0 +1,11 @@
+---
+
+- name: CheckMK Client Setup
+  hosts: checkmk_clients
+  become: true
+
+#  vars_files:
+#    - vars/main.yml
+
+  roles:
+    - checkmk-clients
