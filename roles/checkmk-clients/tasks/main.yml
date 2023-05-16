@@ -1,98 +1,14 @@
 ---
 
-# wings@bastion01:~$ wget --no-check-certificate https://dev-checkmk01.estuary.tech/estuary/check_mk/agents/check-mk-agent_2.2.0b4-1_all.deb
-# --2023-04-21 08:41:55--  https://dev-checkmk01.estuary.tech/estuary/check_mk/agents/check-mk-agent_2.2.0b4-1_all.deb
-# Resolving dev-checkmk01.estuary.tech (dev-checkmk01.estuary.tech)... 10.24.10.100
-# Connecting to dev-checkmk01.estuary.tech (dev-checkmk01.estuary.tech)|10.24.10.100|:443... connected.
-# WARNING: cannot verify dev-checkmk01.estuary.tech's certificate, issued by ‘emailAddress=wings@protocol.ai,CN=dev-checkmk01.estuary.tech.key,OU=Estuary Team,O=Protocol Labs,ST=Some-State,C=US’:
-#   Self-signed certificate encountered.
-#     WARNING: certificate common name ‘dev-checkmk01.estuary.tech.key’ doesn't match requested host name ‘dev-checkmk01.estuary.tech’.
-# HTTP request sent, awaiting response... 200 OK
-# Length: 4007156 (3.8M) [application/vnd.debian.binary-package]
-# Saving to: ‘check-mk-agent_2.2.0b4-1_all.deb’
-
-# check-mk-agent_2.2.0b4-1_all.deb                 100%[=======================================================================================================>]   3.82M  --.-KB/s    in 0.05s   
-
-# 2023-04-21 08:41:55 (74.4 MB/s) - ‘check-mk-agent_2.2.0b4-1_all.deb’ saved [4007156/4007156]
-
-- name: Collect list of available agents on the Checkmk server
-  delegate_to: "{{ checkmk_server_url }}"
-  ansible.builtin.command: |
-     ls /opt/omd/sites/{{ checkmk_site_name }}/share/check_mk/agents/
-  run_once: true
-  register: agents_result
-
-- name: Filter the *_all.deb agent
-  ansible.builtin.set_fact:
-    deb_agent: "{{ item }}"
-  loop: "{{ agents_result.stdout_lines }}"
-  when: item.endswith('_all.deb')
-  run_once: true
-
 - name: Download CheckMK agent onto the server
   ansible.builtin.get_url:
-    url: "https://{{ checkmk_server_url }}/{{ checkmk_site_name }}/check_mk/agents/{{ deb_agent }}"
-    dest: "/tmp/{{ deb_agent }}"
+    url: "https://{{ checkmk_server_url }}/{{ checkmk_site_name }}/check_mk/agents/{{ checkmk_deb_agent }}"
+    dest: "/tmp/{{ checkmk_deb_agent }}"
     validate_certs: no
-
-# ubuntu@dev-checkmk01:~$ sudo apt install -y ./check-mk-raw-2.2.0b4_0.jammy_amd64.deb 
-# Reading package lists... Done
-# Building dependency tree... Done
-# Reading state information... Done
-# Note, selecting 'check-mk-raw-2.2.0b4' instead of './check-mk-raw-2.2.0b4_0.jammy_amd64.deb'
-# check-mk-raw-2.2.0b4 is already the newest version (0.jammy).
-# 0 upgraded, 0 newly installed, 0 to remove and 1 not upgraded.
-# ubuntu@dev-checkmk01:~$ sudo apt search check-mk
-# Sorting... Done
-# Full Text Search... Done
-# check-mk-raw-2.2.0b4/now 0.jammy amd64 [installed,local]
-#   Checkmk - Best-in-class infrastructure & application monitoring
-
-# wings@bastion01:~$ sudo apt install -y ./check-mk-agent_2.2.0b4-1_all.deb
 
 - name: Add Checkmk agent package and prerequisites
   ansible.builtin.apt:
-    deb: /tmp/{{ deb_agent }}
-
-# wings@bastion01:~$ sudo cmk-agent-ctl register --hostname prod-bastion01.estuary.tech --server dev-checkmk01.estuary.tech --site estuary --user cmkadmin
-# Attempting to register at dev-checkmk01.estuary.tech:8000/estuary. Server certificate details:
-
-# PEM-encoded certificate:
-# -----BEGIN CERTIFICATE-----
-# MIIC6DCCAdCgAwIBAgIUIwlv5573VtbZblFlh+DU+3uphtswDQYJKoZIhvcNAQEL
-# BQAwIjEgMB4GA1UEAwwXU2l0ZSAnZXN0dWFyeScgbG9jYWwgQ0EwIBcNMjMwNDIx
-# MDYzNjM5WhgPMzAyMjA0MjEwNjM2MzlaMBIxEDAOBgNVBAMMB2VzdHVhcnkwggEi
-# MA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC2nQ3bj3/Vd6CUxd95LGIR3B5V
-# w1SUZ5Av8wlgUdATJgan5qSt3BT181G+3+W7E49UFlTIw4KHCAkwQ0or74hNGIRP
-# zf4JRqc7O10PEt+W6Yxq2YRn/t1RnZNekXIDUVQucJWWX6lpiurs/GIJs7OsvCME
-# h/QUjkph6bWBuFPVJEVnTc6SF9ED5TV2SjU8s9dYNLeoHazp1lCpUGAv2m3Nla1K
-# zxPAlL1BoJ17vNpYK88Zf4KUwQp5IvaNNPwk1W6M9+yJWHueFRrQlIySmaeuFEKW
-# 5/YQImlJz4791wZVrzNzLvNJnbmCc2wYIoCM6cxC7nCxsKrzSirEP7vouRLDAgMB
-# AAGjJDAiMBIGA1UdEQQLMAmCB2VzdHVhcnkwDAYDVR0TAQH/BAIwADANBgkqhkiG
-# 9w0BAQsFAAOCAQEAIFJNbKh0QAlQz6AKTR6uVLy5i4MlkbUQm3Bqxf9/l0QtL8gL
-# ZEcTUhOCizAaemiOaevJED+gUc5rCcmm9aihCdg1pwDnp7DSqa1dE0P3Vxbf9rED
-# KhMj+Wr3BjcXCDz+RFpf2sIT8By15gyf/PuCJHekTRZcHdpaER6mi25eUOIe04Ri
-# ofA/SwAlPkuFrtGfAdT7lr0KbWsVmFrQyHkJcxe7AQj8sz1zcKUBhulVzyqE2oiI
-# U94MtVnJ0p4SeXCOUfeipjEH9QR5IH0GEIx6XkjhuZXfvf1AFZFikhhoJwEYcT4E
-# hDXLl6cJl/0zOijnN0BJgdKkMd/XhZ5AX37N9g==
-# -----END CERTIFICATE-----
-
-# Issued by:
-# 	Site 'estuary' local CA
-# Issued to:
-# 	estuary
-# Validity:
-# 	From Fri, 21 Apr 2023 06:36:39 +0000
-# 	To   Sun, 21 Apr 3022 06:36:39 +0000
-
-# Do you want to establish this connection? [Y/n]
-# > y
-
-# Please enter password for 'cmkadmin'
-# > 
-
-# Create a host.
-
+    deb: /tmp/{{ checkmk_deb_agent }}
 
 - name: "Create host on CheckMK server."
   delegate_to: localhost
@@ -115,32 +31,6 @@
 - name: Print checkmk_agent_create_result variable
   debug:
     var: checkmk_agent_create_result
-
-# - name: "Create a host."
-#   #delegate_to: localhost
-#   #become: no
-#   tribe29.checkmk.host:
-#     server_url: "https://{{ checkmk_server_url }}/"
-#     site: "{{ checkmk_site_name }}"
-#     automation_user: "automation"
-#     automation_secret: "{{ checkmk_automation_secret }}"
-#     name: "{{ inventory_hostname }}"
-#     folder: "/"
-#     state: "present"
-#   run_once: 'true'
-
-# sudo cmk-agent-ctl register-new --hostname {{ inventory_hostname }} --server {{ checkmk_server_url }} --site {{ checkmk_site_name }} --user cmkadmin --password {{ checkmk_cmkadmin_user_password }} --trust-cert
-
-# - name: Register each host with cmk-agent-ctl
-#   shell: |
-#     cmk-agent-ctl register \
-#       --server {{ checkmk_server_url }} \
-#       --site {{ checkmk_site_name }} \
-#       --user automation \
-#       --password {{ checkmk_automation_secret }} \
-#       --trust-cert
-#   args:
-#     creates: /etc/check_mk/agent_secret
 
 - name: "Add newly discovered services on host."
   delegate_to: localhost
