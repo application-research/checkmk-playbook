@@ -6,5 +6,7 @@
 #checkmk_download_url: https://download.checkmk.com/checkmk/2.1.0p26/check-mk-free-2.1.0p26_0.jammy_amd64.deb       # Find download links at: https://checkmk.com/download/archive
 
 # CheckMK Agent Settings
+#checkmk_deb_agent: "check-mk-agent_2.1.0p20-1_all.deb"         # Located on CheckMK server at: /omd/sites/{{ checkmk_site_name }}/var/check_mk/agents/check-mk-agent_2.1.0p20-1_all.deb
 #checkmk_agent_server_validate_certs: false
 #checkmk_automation_secret: "fill-me-in"
+
