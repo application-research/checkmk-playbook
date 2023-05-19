@@ -1,5 +1,19 @@
 ---
 
+- name: Collect list of available agents on the Checkmk server
+  delegate_to: "{{ checkmk_server_url }}"
+  ansible.builtin.command: |
+     ls /opt/omd/sites/{{ checkmk_site_name }}/share/check_mk/agents/
+  run_once: true
+  register: agents_result
+
+- name: Filter the *_all.deb agent
+  ansible.builtin.set_fact:
+    checkmk_deb_agent : "{{ item }}"
+  loop: "{{ agents_result.stdout_lines }}"
+  when: item.endswith('_all.deb')
+  run_once: true
+
 - name: Download CheckMK agent onto the server
   ansible.builtin.get_url:
     url: "https://{{ checkmk_server_url }}/{{ checkmk_site_name }}/check_mk/agents/{{ checkmk_deb_agent }}"
