@@ -52,7 +52,7 @@ check_mk_agent.freebsd                check_mk_agent.openbsd  CONTENTS          
 
 2) Get the full hash value for the specific client you wish to install:
 
-[image]
+![Screenshot from 2023-06-28 13-32-51](https://github.com/PC-Admin/checkmk-playbook/assets/29645145/71b38c61-2bed-4448-b9b2-7c117b1031ed)
 
 Here we see the DEB link is: https://monitoring.estuary.tech/estuary/check_mk/download_agent.py?hash=025d6a48928e3af5&os=linux_deb
 
