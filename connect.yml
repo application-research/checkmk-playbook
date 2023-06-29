@@ -1,6 +1,6 @@
 ---
 
-- name: CheckMK Client Setup
+- name: CheckMK Connect Clients
   hosts: checkmk_clients
   become: true
 
@@ -8,4 +8,4 @@
 #    - vars/main.yml
 
   roles:
-    - checkmk-clients
+    - connect-clients

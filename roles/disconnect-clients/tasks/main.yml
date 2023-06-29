@@ -1,0 +1,42 @@
+---
+
+- name: "Remove host from CheckMK server."
+  delegate_to: localhost
+  become: false
+  tribe29.checkmk.host:
+    server_url: "https://{{ checkmk_server_url }}/"
+    site: "{{ checkmk_site_name }}"
+    automation_user: "automation"
+    automation_secret: "{{ checkmk_automation_secret }}"
+    folder: "{{ checkmk_agent_folder | default(omit) }}"
+    name: "{{ inventory_hostname }}"
+    #attributes: "{{ checkmk_agent_host_attributes }}"
+    state: "absent"
+    validate_certs: "{{ checkmk_agent_server_validate_certs | bool }}"
+  register: checkmk_agent_disconnect_result
+  failed_when: |
+    (checkmk_agent_disconnect_result.failed == true) and
+    ("The host is already part of the specified target folder" not in checkmk_agent_disconnect_result.msg)
+
+- name: Print checkmk_agent_disconnect_result variable
+  debug:
+    var: checkmk_agent_disconnect_result
+
+- name: Uninstall the check-mk-agent package
+  ansible.builtin.apt:
+    name: check-mk-agent
+    state: absent
+
+- name: "Activate changes on all sites including foreign changes"
+  delegate_to: localhost
+  become: no
+  tribe29.checkmk.activation:
+    server_url: "https://{{ checkmk_server_url }}/"
+    site: "{{ checkmk_site_name }}"
+    automation_user: "automation"
+    automation_secret: "{{ checkmk_automation_secret }}"
+    force_foreign_changes: true
+    validate_certs: "{{ checkmk_agent_server_validate_certs | bool }}"
+  run_once: true
+  when: activate_changes | bool
+

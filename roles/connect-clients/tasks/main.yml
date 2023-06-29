@@ -1,0 +1,98 @@
+---
+
+- name: Fetch check_mk agent file to Ansible controller
+  delegate_to: "{{ checkmk_server_url }}"
+  ansible.builtin.fetch:
+    src: "/omd/sites/{{ checkmk_site_name }}/var/check_mk/agents/linux_deb/_PACKAGES/{{ check_mk_agent_hash }}"
+    dest: "{{ playbook_dir }}/agents/checkmk_agent_{{ check_mk_agent_hash }}.deb"
+    flat: yes
+  run_once: true
+
+- name: Copy check_mk agent file from Ansible controller to target
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/agents/checkmk_agent_{{ check_mk_agent_hash }}.deb"
+    dest: "/tmp/checkmk_agent_{{ check_mk_agent_hash }}.deb"
+
+- name: Add Checkmk agent package and prerequisites
+  ansible.builtin.apt:
+    deb: "/tmp/checkmk_agent_{{ check_mk_agent_hash }}.deb"
+
+# Broken see: https://github.com/PC-Admin/checkmk-playbook/issues/1
+
+# - name: "Create CheckMK folder if defined."
+#   delegate_to: localhost
+#   become: false
+#   checkmk.general.folder:
+#     server_url: "https://{{ checkmk_server_url }}/"
+#     site: "{{ checkmk_site_name }}"
+#     automation_user: "automation"
+#     automation_secret: "{{ checkmk_automation_secret }}"
+#     path: "/{{ checkmk_agent_folder }}"
+#     #name: "{{ checkmk_agent_folder }}"
+#     state: "present"
+#     validate_certs: "{{ checkmk_agent_server_validate_certs | bool }}"
+#   when: checkmk_agent_folder is defined
+
+- name: "Create host on CheckMK server."
+  delegate_to: localhost
+  become: false
+  tribe29.checkmk.host:
+    server_url: "https://{{ checkmk_server_url }}/"
+    site: "{{ checkmk_site_name }}"
+    automation_user: "automation"
+    automation_secret: "{{ checkmk_automation_secret }}"
+    folder: "{{ checkmk_agent_folder | default(omit) }}"
+    name: "{{ inventory_hostname }}"
+    #attributes: "{{ checkmk_agent_host_attributes }}"
+    state: "present"
+    validate_certs: "{{ checkmk_agent_server_validate_certs | bool }}"
+  register: checkmk_agent_create_result
+  failed_when: |
+    (checkmk_agent_create_result.failed == true) and
+    ("The host is already part of the specified target folder" not in checkmk_agent_create_result.msg)
+
+- name: Print checkmk_agent_create_result variable
+  debug:
+    var: checkmk_agent_create_result
+
+- name: "Register the host with the CheckMK server."
+  become: true
+  ansible.builtin.command: |
+    cmk-agent-ctl register --server {{ checkmk_server_url }} --site {{ checkmk_site_name }} --hostname {{ inventory_hostname }} --user automation -P {{ checkmk_automation_secret }} --trust-cert
+  register: checkmk_agent_register_result
+  failed_when: |
+    (checkmk_agent_register_result.failed == true) and
+    ("The host is already part of the specified target folder" not in checkmk_agent_register_result.msg)
+
+- name: "Register the host for automated updates with the CheckMK server."
+  become: true
+  ansible.builtin.command: |
+    cmk-update-agent register --server {{ checkmk_server_url }} --site {{ checkmk_site_name }} --hostname {{ inventory_hostname }} --protocol https --user automation --secret {{ checkmk_automation_secret }}
+  register: checkmk_agent_register_updates_result
+  failed_when: |
+    (checkmk_agent_register_updates_result.failed == true)
+
+- name: "Add newly discovered services on host."
+  delegate_to: localhost
+  become: false
+  tribe29.checkmk.discovery:
+    server_url: "https://{{ checkmk_server_url }}/"
+    site: "{{ checkmk_site_name }}"
+    automation_user: "automation"
+    automation_secret: "{{ checkmk_automation_secret }}"
+    host_name: "{{ inventory_hostname }}"
+    state: "refresh"
+    validate_certs: "{{ checkmk_agent_server_validate_certs | bool }}"
+
+- name: "Activate changes on all sites including foreign changes."
+  delegate_to: localhost
+  become: no
+  tribe29.checkmk.activation:
+    server_url: "https://{{ checkmk_server_url }}/"
+    site: "{{ checkmk_site_name }}"
+    automation_user: "automation"
+    automation_secret: "{{ checkmk_automation_secret }}"
+    force_foreign_changes: true
+    validate_certs: "{{ checkmk_agent_server_validate_certs | bool }}"
+  when: activate_changes | bool
+  run_once: true

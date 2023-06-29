@@ -1,0 +1,11 @@
+---
+
+- name: CheckMK Disconnect Clients
+  hosts: checkmk_clients
+  become: true
+
+#  vars_files:
+#    - vars/main.yml
+
+  roles:
+    - disconnect-clients
