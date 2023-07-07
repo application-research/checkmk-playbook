@@ -26,6 +26,7 @@
   ansible.builtin.apt:
     name: check-mk-agent
     state: absent
+  ignore_unreachable: true
 
 - name: "Activate changes on all sites including foreign changes"
   delegate_to: localhost

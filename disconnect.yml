@@ -3,6 +3,7 @@
 - name: CheckMK Disconnect Clients
   hosts: checkmk_clients
   become: true
+  gather_facts: false
 
 #  vars_files:
 #    - vars/main.yml
